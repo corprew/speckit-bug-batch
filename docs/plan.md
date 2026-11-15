@@ -126,7 +126,11 @@ If R1 or R2 fails, the fallback is: the orchestrator creates worktrees itself wi
 1. `docs`: spec.md (this PR series begins here)
 2. `docs`: plan.md, plus research.md with the spike results
 3. `docs`: tasks.md
-4. `feat`: the scripts and their tests (no commands yet)
+4. `feat`: the scripts and their tests (no commands yet), split into four PRs for review:
+   - 4a: the shared library (config, paths, io)
+   - 4b: resources, heavy-lock and state
+   - 4c: candidates, classify and batch
+   - 4d: worktree, pr-body and preflight
 5. `feat`: manifest, config template, worker prompt and the `run` / `status` / `cleanup` commands, plus the dry-run test
 6. `docs`: README, usage and CHANGELOG; tag v0.1.0
 7. In each adopting project, a PR that installs the extension and adds its `.specify/bug-batch.yml`
