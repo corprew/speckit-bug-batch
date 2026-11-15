@@ -3,7 +3,7 @@
 - **Spec**: [spec.md](./spec.md)
 - **Status**: Approved (#2). Amended by the T016 decision ([research.md](./research.md)).
 - **Runs in**: Claude Code (local CLI or desktop) inside a Spec Kit project, macOS or Linux
-- **Requires**: git ≥ 2.38, `gh` (signed in), Node ≥ 20, Spec Kit with the `bug` and `security-review` extensions installed
+- **Requires**: git ≥ 2.38, `gh` (signed in), Node ≥ 22, Spec Kit with the `bug` and `security-review` extensions installed
 
 ## 1. Approach
 

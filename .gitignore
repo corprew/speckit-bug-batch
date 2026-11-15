@@ -1,0 +1,14 @@
+# Dependencies and tool output
+node_modules/
+coverage/
+*.log
+npm-debug.log*
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code local state
+.claude/worktrees/
+.claude/settings.local.json

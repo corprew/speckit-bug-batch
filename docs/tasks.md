@@ -7,12 +7,12 @@
 
 ## Phase 1: Docs and setup (PRs 1–3)
 
-- [ ] T001 Create the repo skeleton: `README.md` stub, `LICENSE` (MIT), `.gitignore`, `CHANGELOG.md` (Unreleased) — repo root
+- [x] T001 Create the repo skeleton: `README.md` stub, `LICENSE` (MIT), `.gitignore`, `CHANGELOG.md` (Unreleased) — repo root
 - [x] T002 Add `spec.md` (PR 1) — `docs/spec.md`
 - [x] T003 Add `plan.md` (PR 2) — `docs/plan.md`
 - [x] T004 Add `tasks.md` (PR 3) — `docs/tasks.md`
-- [ ] T005 [P] Add `package.json` (`"type": "module"`, `engines.node >=20`, no runtime dependencies; scripts `test` = `node --test --test-reporter=spec scripts/test/`, `lint` = `node --check` over `scripts/`) — `package.json`
-- [ ] T006 [P] Add CI that runs `npm test` on Node 20 and 22 on ubuntu-latest and macos-latest — `.github/workflows/ci.yml`
+- [x] T005 [P] Add `package.json` (`"type": "module"`, `engines.node >=22`, no dependencies; scripts `test` = `node --test --test-reporter=spec "scripts/test/**/*.test.mjs"`, `lint` = `scripts/check-syntax.mjs`, which runs `node --check` once per file), plus a repo smoke test — `package.json`, `scripts/check-syntax.mjs`, `scripts/test/repo.test.mjs`
+- [x] T006 [P] Add CI that runs `npm run lint` and `npm test` on Node 22 and 24 on ubuntu-latest and macos-latest — `.github/workflows/ci.yml`
 
 ## Phase 2: Spikes (PR 2, recorded in research.md)
 
