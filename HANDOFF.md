@@ -6,8 +6,8 @@ This repo was started in a cloud session that couldn't start worktree-isolated s
 
 - `docs/spec.md`: approved and merged (#1).
 - `docs/plan.md`: approved and merged (#2).
-- `docs/tasks.md`: in review (#3).
-- `docs/research.md` and `docs/spikes/`: the spike protocol (this PR). The results aren't in yet.
+- `docs/tasks.md`: merged (#3).
+- `docs/research.md`: the spikes are done. T016 chose the main design, with resume moving each bug into a fresh worktree and a sandbox allowlist check. `plan.md` and `tasks.md` are updated to match.
 
 ## Ground rules
 
@@ -19,11 +19,8 @@ This repo was started in a cloud session that couldn't start worktree-isolated s
 
 ## Next steps
 
-1. **Run the spikes (T010–T015).**
-   - In this repo, run `bash docs/spikes/setup.sh`.
-   - Open a **separate** session with `cd /tmp/bb-spike/work && claude` and paste `docs/spikes/spike-prompt.md`.
-   - It writes `/tmp/bb-spike/results.md`.
-2. **Record the results.** Back in a session in this repo, summarise results.md into `docs/research.md`. Then propose the T016 decision, main design or fallback, with any `plan.md` changes it needs. Open both as a PR for approval.
+1. ~~Run the spikes (T010–T015).~~ Done. To rerun them on a newer Claude Code: `bash docs/spikes/setup.sh`, then `spike-prompt.md` and `followup-prompt.md` in separate sessions (see `docs/research.md`).
+2. ~~Record the results and the T016 decision.~~ Done (`docs/research.md`).
 3. **Phase 1 setup** (T001, T005, T006): repo skeleton, `package.json`, and CI.
 4. **Phase 3 scripts with tests**, following `docs/tasks.md`.
 
