@@ -58,3 +58,15 @@ test('check-syntax: skips fixtures and node_modules', () => {
   assert.equal(r.code, 0);
   assert.match(r.stdout, /checked 1 file\(s\)/);
 });
+
+test('CI: the Node matrix starts at the engines minimum and runs on Linux and macOS', () => {
+  const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
+  const nodes = ci.match(/^\s*node:\s*\[([^\]]+)\]/m)?.[1].split(',').map((v) => Number(v.trim()));
+  const oses = ci.match(/^\s*os:\s*\[([^\]]+)\]/m)?.[1].split(',').map((v) => v.trim());
+  assert.ok(nodes?.length, 'ci.yml must have a node matrix');
+  const minimum = Number(pkg.engines.node.replace('>=', ''));
+  assert.equal(Math.min(...nodes), minimum, 'lowest CI Node version must equal the engines minimum');
+  assert.deepEqual(oses, ['ubuntu-latest', 'macos-latest']);
+  assert.match(ci, /run: npm test/);
+  assert.match(ci, /run: npm run lint/);
+});
