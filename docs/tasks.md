@@ -26,14 +26,16 @@ Do these before Phase 4. Each spike uses a throwaway scratch repo with a stub `/
 - [x] T015 R6: with a default branch that isn't `main`, a worktree branches from the newest `origin/<default>` under `worktree.baseRef: "fresh"` — `docs/research.md`
 - [x] T016 Decision: pick the primary design or the §10 fallback from T010–T015, and update `docs/plan.md` §1/§5 to match — `docs/plan.md`. **Outcome:** the main design, with resume moving each bug into a fresh worktree, a commit at the end of every phase, and a sandbox allowlist check (research.md). The follow-up spikes R7, R3b and R8 are recorded there too.
 
-## Phase 3: Foundational scripts (PR 4)
+## Phase 3: Foundational scripts (PRs 4a–4d)
+
+Plan §12 splits this phase into four PRs: 4a is T020–T023; 4b is T030–T041; 4c is T050–T063; 4d is T070–T081.
 
 Shared library first. Everything else in this phase depends on T020–T022.
 
-- [ ] T020 Config loader: read `.specify/bug-batch.yml` (a minimal YAML subset parser, since there are no dependencies, or JSON), merge with defaults, validate, and return typed errors — `scripts/lib/config.mjs`
-- [ ] T021 Repo id and paths: hash of the origin URL; per-repo state folder `${XDG_STATE_HOME:-~/.local/state}/speckit-bug-batch/<repo id>/`; locks and batches folders — `scripts/lib/paths.mjs`
-- [ ] T022 Shared helpers: JSON output, exit codes, atomic write (temp file then rename), secret redaction — `scripts/lib/io.mjs`
-- [ ] T023 [P] Tests for T020–T022: defaults, a bad config, a stable repo id across URL forms (ssh/https/.git), atomic write leaving no partial file, redaction of `LINEAR_API_KEY` values — `scripts/test/lib.test.mjs`
+- [x] T020 Config loader: read `.specify/bug-batch.yml` with a strict YAML subset parser (anything it accepts parses the same under YAML 1.2; anything else is an error naming the line), merge with defaults, validate, and return typed errors — `scripts/lib/yaml.mjs`, `scripts/lib/config.mjs`
+- [x] T021 Repo id and paths: hash of the normalized origin URL (with no origin, the git common dir's real path, plus a warning); per-repo state folder `${XDG_STATE_HOME:-~/.local/state}/speckit-bug-batch/<repo id>/`; locks and batches folders — `scripts/lib/paths.mjs`
+- [x] T022 Shared helpers: JSON output, exit codes, atomic write (temp file then rename), secret redaction — `scripts/lib/io.mjs`
+- [x] T023 [P] Tests for T020–T022: defaults, a bad config, a stable repo id across URL forms (ssh/https/.git), atomic write leaving no partial file, redaction of `LINEAR_API_KEY` values — `scripts/test/{yaml,config,paths,io}.test.mjs`
 
 ### US4: machine limits
 - [ ] T030 [P] [US4] `resources.mjs check|snapshot`: CPU count, load average, free memory (`vm_stat` on macOS, `/proc/meminfo` on Linux), free disk (`fs.statfs`); returns `{ok, reasons[]}` measured against config limits — `scripts/resources.mjs`
@@ -65,7 +67,7 @@ Shared library first. Everything else in this phase depends on T020–T022.
 - [ ] T080 [US1] `preflight.mjs`: clean tracked tree, `gh auth status`, `git fetch origin <base>`, `worktree.baseRef` not `head` (read from Claude Code settings files), state folder writable (if the sandbox blocks it, fail and name the `sandbox.filesystem.allowWrite` entry to add), Node version, tracker readiness, resource snapshot; JSON report with a pass or fail per check — `scripts/preflight.mjs` (depends on T020–T030)
 - [ ] T081 [US1] Tests with a stubbed `gh` and `git` on `PATH` — `scripts/test/preflight.test.mjs`
 
-**Checkpoint**: `npm test` passes on macOS and Linux in CI. Open PR 4.
+**Checkpoint**: `npm test` passes on macOS and Linux in CI after each of PRs 4a–4d.
 
 ## Phase 4: Commands and prompts (PR 5)
 
