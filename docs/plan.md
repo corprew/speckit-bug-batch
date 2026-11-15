@@ -1,7 +1,7 @@
 # Implementation Plan: `bug-batch` Spec Kit extension
 
 - **Spec**: [spec.md](./spec.md)
-- **Status**: Draft, for review
+- **Status**: Approved (#2). Amended by the T016 decision ([research.md](./research.md)).
 - **Runs in**: Claude Code (local CLI or desktop) inside a Spec Kit project, macOS or Linux
 - **Requires**: git ≥ 2.38, `gh` (signed in), Node ≥ 20, Spec Kit with the `bug` and `security-review` extensions installed
 
@@ -10,20 +10,21 @@
 The extension follows the structure of `speckit-review-gate`: a manifest, Markdown command prompts, a config template, and helper scripts with tests. The work divides like this:
 
 - **Orchestrator prompt** (`commands/speckit.bug-batch.run.md`). It runs in the maintainer's main session and is the only part that talks to the maintainer. It moves the batch through its phases and decides what runs next.
-- **Worker subagents.** One per bug, started with Claude Code's Agent tool using `isolation: "worktree"` and `run_in_background: true`. Each worker stays alive for the whole life of its bug. The orchestrator moves it to the next phase with `SendMessage`, so the worker keeps its worktree and context between phases instead of starting cold.
+- **Worker subagents.** One per bug, started with Claude Code's Agent tool using `isolation: "worktree"`. Subagents always run in the background, so there's no flag to set. Each worker stays alive for the whole life of its bug. The orchestrator moves it to the next phase with `SendMessage`, so the worker keeps its worktree and context between phases instead of starting cold. Claude Code creates the worktree (`.claude/worktrees/agent-<id>`, branch `worktree-agent-<id>`) from a freshly fetched `origin/<base>` (spikes R1, R2, R6).
+- **Workers commit at the end of every phase**, including the `.specify/bugs/<slug>/` files. Three things depend on this: Claude Code removes a worktree that has no changes when its worker finishes, reviews only see committed changes, and resuming carries over only commits (spikes R1, R2, R3b).
 - **Helper scripts** (Node ESM, no dependencies). These do the parts that should be predictable rather than left to model judgment: fetching trackers, mapping paths to areas, finding conflicts, checking machine load, the heavy-job lock, batch state, worktree housekeeping, and rendering PR bodies. Node rather than bash plus PowerShell, because the logic is JSON-heavy and one implementation then covers every platform.
 
 ## 2. The orchestrator's phases
 
 | # | Phase | Who | Output | Maintainer gate |
 |---|---|---|---|---|
-| 0 | Preflight | `preflight.mjs` | JSON: clean tree, `gh` auth, base fetched, `worktree.baseRef` not `head`, trackers usable, Node version, resource snapshot | Stops on failure |
+| 0 | Preflight | `preflight.mjs` | JSON: clean tree, `gh` auth, base fetched, `worktree.baseRef` not `head`, state folder writable (with the `sandbox.filesystem.allowWrite` entry to add if the sandbox blocks it), trackers usable, Node version, resource snapshot | Stops on failure |
 | 1 | Candidates | `candidates.mjs` (GitHub REST + Linear GraphQL), then label pre-filter | Normalised candidate list | — |
 | 2 | Predict and batch | Read-only `Explore` subagents (at most `max_parallel` at once) predict each candidate's files; `classify.mjs` maps them to area, hot file or excluded; `batch.mjs` picks the batch | Ranked list plus suggested batch | **Choose the batch** (AskUserQuestion, with free text for issue ids) |
 | 3 | Assess | Up to `max_parallel` workers start; each runs `/speckit-bug-assess` in automated slug mode and returns a JSON summary (slug, verdict, severity, files, open questions) | `assessment.md` in each worktree | — |
 | 4 | Clarify and re-check | Orchestrator groups all open questions into AskUserQuestion rounds (≤ 4 per round, grouped by bug); `batch.mjs --recheck` runs against the assessed file lists | `clarifications.md` per bug (written by its worker); deferrals; rebase-at-PR marks | **Answer questions; confirm the final batch** |
 | 5 | Fix and test | Each worker runs setup (dependency install, per-worktree environment), then `/speckit-bug-fix` and the targeted tests, then `/speckit-bug-test`; every heavy step goes through `heavy-lock.mjs` | `fix.md` and `test.md`; commits on the worktree branch | — |
-| 6 | Reviews | Each worker runs the configured reviews against `origin/<base>...HEAD` and writes reports to `review_dir`; returns findings as JSON | Review reports | — |
+| 6 | Reviews | Each worker commits, then runs the configured reviews against `origin/<base>...HEAD`, and waits for the review agents' results and writes reports to `review_dir`; returns findings as JSON | Review reports | — |
 | 7 | Findings | Orchestrator shows one table and asks which findings to fix, per bug (AskUserQuestion multi-select: the top findings as options, plus "Other" for ids); workers fix them and rerun the review that raised them | Updated reports | **Choose findings to fix** |
 | 8 | Pull requests | Per branch: summary, then approval; on approval the worker rebases if marked rebase-at-PR (running the hot file's `regenerate` command and the targeted tests again), pushes, and opens a draft PR with `gh pr create --draft --body-file` | Draft PR URLs | **Approve each branch** |
 | 9 | Close out | `worktree.mjs remove` for opened PRs, plus teardown commands; final summary of PRs, deferred bugs, kept worktrees and needs-screenshot branches | — | — |
@@ -39,7 +40,7 @@ As workers finish, the orchestrator starts the bugs waiting in the queue, so up 
   - free disk (`fs.statfs`)
 
   It returns `{ok, reasons[]}`. Defaults: load < 0.8 × cores, ≥ 4 GB free memory, ≥ 10 GB free disk.
-- **The heavy-job lock** (`heavy-lock.mjs acquire|release|status|run -- <cmd>`) is a counting semaphore of `max_heavy` slots. It's built from `mkdir` lock directories in a **per-repository** state folder: `${XDG_STATE_HOME:-~/.local/state}/speckit-bug-batch/<repo id>/locks`, where the repo id is the same hash of the origin URL used for batch state (§5). Each repository has its own `max_heavy` slots. Batches in different repositories don't share them; two batches in the same repository, or several clones of it, do. Each slot records its holder's PID and start time. A slot whose PID is dead is taken back. Acquiring waits with backoff and also waits on `resources.mjs check`. That check reads the whole machine's load, memory and disk, so a batch running in another repository still holds this one back when the machine is busy, without sharing its slots. Workers wrap every heavy command in `heavy-lock.mjs run -- …`.
+- **The heavy-job lock** (`heavy-lock.mjs acquire|release|status|run -- <cmd>`) is a counting semaphore of `max_heavy` slots. It's built from `mkdir` lock directories in a **per-repository** state folder: `${XDG_STATE_HOME:-~/.local/state}/speckit-bug-batch/<repo id>/locks`, where the repo id is the same hash of the origin URL used for batch state (§5). Each repository has its own `max_heavy` slots. Batches in different repositories don't share them; two batches in the same repository, or several clones of it, do. Each slot records its holder's PID and start time. A slot whose PID is dead is taken back. Acquiring waits with backoff and also waits on `resources.mjs check`. That check reads the whole machine's load, memory and disk, so a batch running in another repository still holds this one back when the machine is busy, without sharing its slots. Workers wrap every heavy command in `heavy-lock.mjs run -- …`. With Claude Code's sandbox on, this folder must be listed in `sandbox.filesystem.allowWrite`, and preflight checks that it is (spikes R4, R7). The repository's `.git` isn't an alternative: it's only writable while a worktree agent runs.
 - **Per-worktree environment.** The config's `worktree.env` (for example `DATABASE_URL=…/app_{slug}`) is written to a gitignored env file in the worktree, and the `setup` and `teardown` commands create and drop whatever it names. A test command can instead be marked `heavy: true` so it runs alone.
 - **Targeted tests.** `tests.targeted` maps changed paths to commands (for example `apps/api/** → <filter> test -- {files}`). Full suites run only if the maintainer asks.
 
@@ -52,9 +53,15 @@ As workers finish, the orchestrator starts the bugs waiting in the queue, so up 
 
 ## 5. State and resuming (US7, FR-013)
 
-- State lives in `<state dir>/<repo id>/<batch id>/state.json`. The repo id is a hash of the origin URL. It sits outside every working tree, so worktree isolation and gitignore rules don't affect it.
+- State lives in `<state dir>/<repo id>/batches/<batch id>/state.json`. The repo id is a hash of the origin URL. It sits outside every working tree, so worktree isolation and gitignore rules don't affect it.
 - `state.mjs` handles `init`, `get`, `set-phase`, `record` and `list`, and writes atomically (write to a temp file, then rename).
-- Resuming: `run` finds an unfinished batch for the repo and offers to continue it. Each worker is restarted in its recorded worktree (see spike R3) and continues from its recorded phase.
+- Resuming: `run` finds an unfinished batch for the repo and offers to continue it. Each unfinished bug **moves into a fresh worktree**:
+  1. The orchestrator starts a new isolated worker.
+  2. The worker runs `git reset --hard <recorded branch tip>` in its new worktree and continues from the recorded phase.
+  3. `state.mjs record` stores the new worktree path and branch.
+  4. The old worktree is kept, with any uncommitted edits, until `cleanup` removes it with approval.
+
+  A phase that was cut off restarts from its last commit. Workers don't take over the old worktree in place: under the sandbox, a worktree from an earlier session can't be committed to, and a second checkout of its branch needs `git worktree add -f` (spikes R3, R3b). Claude Code's worktree locks aren't used as a signal, because they hold the parent session's PID and their lifetime varies (spike R2).
 
 ## 6. Trackers (FR-002, FR-011)
 
@@ -70,7 +77,7 @@ As workers finish, the orchestrator starts the bugs waiting in the queue, so up 
 
 ## 8. Pull requests (US6)
 
-- **Branch**: `branch_pattern` (default `fix/{issue}-{slug}`). The worker renames its worktree branch with `git branch -m` before pushing.
+- **Branch**: `branch_pattern` (default `fix/{issue}-{slug}`). The worker renames its worktree branch (`worktree-agent-<id>`) with `git branch -m` before pushing.
 - **Body**: `pr-body.mjs` fills `pr.body_template` from the bug folder (summary from `fix.md`, test results from `test.md`, links to the review reports, the issue that closes, and a Linear id if there is one). The default template has Summary / Tests / Reviews / Closes sections.
 - **Push**: `git push -u origin <branch>`, never with `--force`. Then `gh pr create --draft --base <pr.base>`.
 
@@ -105,6 +112,8 @@ These are Claude Code behaviours the design depends on. Each spike is a throwawa
 
 If R1 or R2 fails, the fallback is: the orchestrator creates worktrees itself with `worktree.mjs add`, and gives each phase to a new worker told to work only in that path. File isolation is then enforced by the prompt rather than by Claude Code.
 
+**Outcome (T016):** R1, R2, R5 and R6 passed, and follow-up spikes R7, R3b and R8 were added. The main design stands, so the fallback isn't needed. R3 and R3b changed how resuming works (§5), and R4 and R7 added the sandbox allowlist check (§2, §3). Details are in [research.md](./research.md).
+
 ## 11. Testing
 
 - **Unit** (`node --test --test-reporter=spec`): classify (globs, longest match, hot and excluded paths); batch (area spread, hot-file claims, rebase-at-PR, re-check deferral); resources (fixture `vm_stat` and `/proc/meminfo` output, threshold logic); heavy-lock (concurrent acquire from several child processes, stale-PID recovery, `max_heavy` > 1); state (atomic writes, resume listing); pr-body (template rendering, Linear id, missing reports); candidates (fixture REST and GraphQL responses, label filter, key redaction).
@@ -126,8 +135,10 @@ If R1 or R2 fails, the fallback is: the orchestrator creates worktrees itself wi
 
 | Risk | Mitigation |
 |---|---|
-| A spike fails, so workers can't keep their worktree or run skills | The fallback in §10. Isolation becomes a prompt rule, and the cost is less safety, not lost features. |
+| A Claude Code update changes worktree behaviour (auto-removal, fetching, sandbox rules) | research.md records the version tested. Preflight checks what it can. The fallback in §10 still exists if worktree workers stop working. |
+| Under the sandbox, heavy jobs can't reach the network or Docker (installs, container-backed tests) | Untested. The pilot (T152) checks it. Until then, usage docs say heavy jobs may need the sandbox off. |
+| Two repositories' batches collide on a shared host resource, such as a database port | The heavy-job lock is per repository by design. Usage docs recommend a per-worktree database, or running batches in one repository at a time. |
 | Area prediction misses a file, so two PRs conflict anyway | The re-check in phase 4 uses each assessment's file list. A conflict found at PR time is reported, and that PR is rebased rather than force-pushed. |
 | The load limit is too strict and nothing starts | All limits are in config. `status` shows which limit is blocking. |
-| A long-lived worker's context fills up | The worker returns compact JSON. The reports live on disk. A worker can be restarted from its recorded phase (R3). |
+| A long-lived worker's context fills up | The worker returns compact JSON. The reports live on disk. A worker can be replaced the same way resume does it (§5), from its last phase commit. |
 | Issue text tries to instruct a worker | It's fenced as untrusted data. Workers can't push or open PRs until the orchestrator passes on an approval. |

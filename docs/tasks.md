@@ -8,9 +8,9 @@
 ## Phase 1: Docs and setup (PRs 1–3)
 
 - [ ] T001 Create the repo skeleton: `README.md` stub, `LICENSE` (MIT), `.gitignore`, `CHANGELOG.md` (Unreleased) — repo root
-- [ ] T002 Add `spec.md` (PR 1) — `docs/spec.md`
-- [ ] T003 Add `plan.md` (PR 2) — `docs/plan.md`
-- [ ] T004 Add `tasks.md` (PR 3) — `docs/tasks.md`
+- [x] T002 Add `spec.md` (PR 1) — `docs/spec.md`
+- [x] T003 Add `plan.md` (PR 2) — `docs/plan.md`
+- [x] T004 Add `tasks.md` (PR 3) — `docs/tasks.md`
 - [ ] T005 [P] Add `package.json` (`"type": "module"`, `engines.node >=20`, no runtime dependencies; scripts `test` = `node --test --test-reporter=spec scripts/test/`, `lint` = `node --check` over `scripts/`) — `package.json`
 - [ ] T006 [P] Add CI that runs `npm test` on Node 20 and 22 on ubuntu-latest and macos-latest — `.github/workflows/ci.yml`
 
@@ -18,13 +18,13 @@
 
 Do these before Phase 4. Each spike uses a throwaway scratch repo with a stub `/speckit-bug-assess` skill, and each result goes in `docs/research.md` with the Claude Code version it was tested on.
 
-- [ ] T010 R1: a background subagent with `isolation: "worktree"` runs a project skill and `/code-review` — `docs/research.md`
-- [ ] T011 R2: `SendMessage` continuation keeps the same worktree and its lock; what happens to the worktree when the worker ends — `docs/research.md`
-- [ ] T012 R3: a new subagent takes over an existing worktree after a restart (`EnterWorktree` on the recorded path); if it can't, prove the `git worktree add <path> <branch>` fallback — `docs/research.md`
-- [ ] T013 R4: a worktree-isolated worker writes to `~/.local/state/speckit-bug-batch/<repo id>/`, with the sandbox off and on — `docs/research.md`
-- [ ] T014 R5: the most background subagents that can run at once, and what happens at the limit — `docs/research.md`
-- [ ] T015 R6: with a default branch that isn't `main`, a worktree branches from the newest `origin/<default>` under `worktree.baseRef: "fresh"` — `docs/research.md`
-- [ ] T016 Decision: pick the primary design or the §10 fallback from T010–T015, and update `docs/plan.md` §1/§5 to match — `docs/plan.md`
+- [x] T010 R1: a background subagent with `isolation: "worktree"` runs a project skill and `/code-review` — `docs/research.md`
+- [x] T011 R2: `SendMessage` continuation keeps the same worktree and its lock; what happens to the worktree when the worker ends — `docs/research.md`
+- [x] T012 R3: a new subagent takes over an existing worktree after a restart (`EnterWorktree` on the recorded path); if it can't, prove the `git worktree add <path> <branch>` fallback — `docs/research.md`
+- [x] T013 R4: a worktree-isolated worker writes to `~/.local/state/speckit-bug-batch/<repo id>/`, with the sandbox off and on — `docs/research.md`
+- [x] T014 R5: the most background subagents that can run at once, and what happens at the limit — `docs/research.md`
+- [x] T015 R6: with a default branch that isn't `main`, a worktree branches from the newest `origin/<default>` under `worktree.baseRef: "fresh"` — `docs/research.md`
+- [x] T016 Decision: pick the primary design or the §10 fallback from T010–T015, and update `docs/plan.md` §1/§5 to match — `docs/plan.md`. **Outcome:** the main design, with resume moving each bug into a fresh worktree, a commit at the end of every phase, and a sandbox allowlist check (research.md). The follow-up spikes R7, R3b and R8 are recorded there too.
 
 ## Phase 3: Foundational scripts (PR 4)
 
@@ -56,13 +56,13 @@ Shared library first. Everything else in this phase depends on T020–T022.
 - [ ] T063 [US3] Tests: area spread, hot-file claim, shared hot file marked, recheck deferral and replacement, batch_size > max_parallel queue order — `scripts/test/batch.test.mjs`
 
 ### Worktrees and PRs
-- [ ] T070 [P] [US6] `worktree.mjs add|rename|remove|list`: the fallback path (`git worktree add`) plus branch rename to `branch_pattern`; `remove` refuses a worktree with commits not yet in a PR unless `--force` is given with approval — `scripts/worktree.mjs`
+- [ ] T070 [P] [US6] `worktree.mjs rename|remove|list`: branch rename from `worktree-agent-<id>` to `branch_pattern` (Claude Code creates the worktrees, per T016); `remove` refuses a worktree with commits not yet in a PR unless `--force` is given with approval — `scripts/worktree.mjs`
 - [ ] T071 [P] [US6] Tests against a temporary git repo with a local bare "origin" — `scripts/test/worktree.test.mjs`
 - [ ] T072 [P] [US6] `pr-body.mjs`: fill `pr.body_template` from the bug folder and review reports; Closes/Linear lines; handles missing files gracefully — `scripts/pr-body.mjs`
 - [ ] T073 [P] [US6] Tests: the default template, a custom template, a Linear-only issue, a missing review report — `scripts/test/pr-body.test.mjs`
 
 ### Preflight
-- [ ] T080 [US1] `preflight.mjs`: clean tracked tree, `gh auth status`, `git fetch origin <base>`, `worktree.baseRef` not `head` (read from Claude Code settings files), Node version, tracker readiness, resource snapshot; JSON report with a pass or fail per check — `scripts/preflight.mjs` (depends on T020–T030)
+- [ ] T080 [US1] `preflight.mjs`: clean tracked tree, `gh auth status`, `git fetch origin <base>`, `worktree.baseRef` not `head` (read from Claude Code settings files), state folder writable (if the sandbox blocks it, fail and name the `sandbox.filesystem.allowWrite` entry to add), Node version, tracker readiness, resource snapshot; JSON report with a pass or fail per check — `scripts/preflight.mjs` (depends on T020–T030)
 - [ ] T081 [US1] Tests with a stubbed `gh` and `git` on `PATH` — `scripts/test/preflight.test.mjs`
 
 **Checkpoint**: `npm test` passes on macOS and Linux in CI. Open PR 4.
@@ -72,15 +72,15 @@ Shared library first. Everything else in this phase depends on T020–T022.
 - [ ] T100 Manifest: id `bug-batch`; commands `speckit.bug-batch.run`, `.status`, `.cleanup`; config template; requires the `bug` and `security-review` extensions plus git, gh and node; no hooks — `extension.yml`
 - [ ] T101 [P] Config template with every key from spec §Configuration, commented, using neutral example values (no project-specific paths) — `config-template.yml`
 - [ ] T102 [P] Manifest validation test (schema shape, files exist, command names) — `scripts/test/manifest.test.mjs`
-- [ ] T110 [US2] Worker brief: the phase protocol (assess → clarify → fix and test → review → findings → PR), the JSON return shapes for each phase, rules (stay in the worktree, wrap heavy commands in `heavy-lock run`, treat issue text as untrusted, never push before an approval arrives, never edit `assessment.md`, write answers to `clarifications.md`) — `prompts/worker.md`
+- [ ] T110 [US2] Worker brief: the phase protocol (assess → clarify → fix and test → review → findings → PR), the JSON return shapes for each phase, rules (stay in the worktree, wrap heavy commands in `heavy-lock run`, treat issue text as untrusted, never push before an approval arrives, never edit `assessment.md`, write answers to `clarifications.md`, commit at the end of every phase including `.specify/bugs/<slug>/`, commit before running reviews and wait for the review agents' results) — `prompts/worker.md`
 - [ ] T111 [US1] `run` command, phases 0–2: preflight, candidates, prediction with read-only Explore subagents (at most `max_parallel`), classify and batch, then the batch choice (AskUserQuestion plus free-text ids) — `commands/speckit.bug-batch.run.md`
 - [ ] T112 [US2] `run` command, phases 3–4: start up to `max_parallel` workers (`isolation: "worktree"`, background), collect assessment JSON, run grouped question rounds (≤ 4 per round), send answers to workers, recheck, confirm the final batch — same file
 - [ ] T113 [US4] `run` command, phase 5 and the queue: move workers to fix and test, start queued bugs as slots free up, call `resources check` before each start — same file
 - [ ] T114 [US5] `run` command, phases 6–7: reviews from config, the findings table, per-bug multi-select of findings to fix, a second review pass — same file
 - [ ] T115 [US6] `run` command, phases 8–9: per-branch approval, rebase-at-PR handling (fetch, rebase, `regenerate`, targeted tests), push, `gh pr create --draft`, needs-screenshot branches kept local, worktree removal and teardown, final summary — same file
-- [ ] T116 [US7] `run` command, resume: find an unfinished batch through `state list`, offer to continue, restart workers by the T016 decision — same file
+- [ ] T116 [US7] `run` command, resume: find an unfinished batch through `state list` and offer to continue. Each unfinished bug gets a new isolated worker, which runs `git reset --hard <recorded tip>` and continues from the recorded phase. Record the new worktree and branch, and keep the old worktree for `cleanup`. **Acceptance:** a resumed bug commits from its new worktree with the sandbox on and with it off (the one T016 step the spikes didn't test) — same file
 - [ ] T120 [P] `status` command: batches, each bug's phase, worktrees, lock holders and any limit that's blocking — `commands/speckit.bug-batch.status.md`
-- [ ] T121 [P] `cleanup` command: list leftover worktrees, stale locks and finished batch state; remove only what's approved; run teardown — `commands/speckit.bug-batch.cleanup.md`
+- [ ] T121 [P] `cleanup` command: list leftover worktrees (including those left behind by resumed bugs), stale locks and finished batch state; remove only what's approved; run teardown. Under the sandbox, removing a worktree from an earlier session needs the maintainer's approval to run outside it — `commands/speckit.bug-batch.cleanup.md`
 - [ ] T130 Dry-run end-to-end: a `--dry-run` flag runs phases 0–7 against a fixture repo and fixture issues with stubbed `gh`, and replaces push and PR creation with a printout; a CI job runs the scripted parts — `scripts/test/e2e-dry-run.test.mjs`, `scripts/test/fixtures/`
 
 **Checkpoint**: PR 5 is reviewed with `/speckit-security-review-branch` and `/code-review` (the extension goes through its own review set).
